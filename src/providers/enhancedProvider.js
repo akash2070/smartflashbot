@@ -303,7 +303,24 @@ function createMultiEnhancedProvider(options = {}) {
   
   // If we have no valid providers
   if (providers.length === 0) {
-    throw new Error('No valid providers could be created');
+    logger.error('No valid providers could be created, using minimal fallback provider');
+    
+    // Create a minimal provider as a last resort
+    const lastResortProvider = new ethers.providers.JsonRpcProvider({
+      url: 'https://bsc-dataseed1.binance.org/',
+      timeout: 30000,
+      allowGzip: true
+    }, {
+      name: 'bnb',
+      chainId: 56
+    });
+    
+    providers.push({
+      provider: lastResortProvider,
+      priority: 1,
+      stallTimeout: 5000,
+      weight: 1
+    });
   }
   
   // Create FallbackProvider with all providers

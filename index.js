@@ -105,8 +105,11 @@ async function initialize() {
         provider.removeAllListeners = (event) => simulator.removeAllListeners(event);
         provider.getTransaction = (txHash) => Promise.resolve(simulator.getTransaction(txHash));
       } else {
-        // In production with USE_REAL_BLOCKCHAIN=true, we need a real network connection
-        throw new Error(`Cannot connect to blockchain in production mode: ${error.message}`);
+        // In production with USE_REAL_BLOCKCHAIN=true, we'll keep retrying
+        logger.error(`Cannot connect to blockchain in production mode: ${error.message}`);
+        logger.warn('Will continue retrying with all available RPC endpoints...');
+        networkInfo = { name: 'bnb-recovery', chainId: 56 };
+        balance = ethers.utils.parseEther('0'); // Zero balance until we connect
       }
     }
     

@@ -116,8 +116,9 @@ class DashboardServer {
     this.app.use(express.urlencoded({ extended: true }));
     
     // Set up session for security
+    const config = require('../config');
     this.app.use(session({
-      secret: process.env.SESSION_SECRET || 'flash-loan-arbitrage-bot-secret',
+      secret: config.dashboard.sessionSecret,
       resave: false,
       saveUninitialized: true,
       cookie: { 

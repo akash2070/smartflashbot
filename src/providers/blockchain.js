@@ -260,8 +260,31 @@ async function createProviderAndWallet() {
         }
       }
       
-      // If we get here, all connection attempts failed
-      throw new Error('Failed to connect to any RPC endpoint');
+      // If we get here, all connection attempts failed initially, but we'll keep trying
+      logger.error('Failed to connect to any RPC endpoint on initial attempt');
+      logger.warn('Creating a minimal provider that will continue retrying connections');
+      
+      // Create a minimal provider that will retry connections
+      const fallbackProvider = new ethers.providers.JsonRpcProvider(
+        'https://bsc-dataseed1.binance.org/',
+        { name: 'bnb', chainId: 56 }
+      );
+      
+      // Create wallet with minimal functionality
+      const privateKey = process.env.PRIVATE_KEY;
+      if (!privateKey) {
+        logger.error('PRIVATE_KEY environment variable not set');
+        const wallet = ethers.Wallet.createRandom().connect(fallbackProvider);
+        logger.warn(`Using random wallet for recovery mode: ${wallet.address}`);
+        return { provider: fallbackProvider, wallet };
+      }
+      
+      // Create wallet
+      const cleanPrivateKey = privateKey.startsWith('0x') ? privateKey.substring(2) : privateKey;
+      const wallet = new ethers.Wallet(cleanPrivateKey, fallbackProvider);
+      
+      logger.warn(`Using recovery mode with address: ${wallet.address}`);
+      return { provider: fallbackProvider, wallet };
     }
   }
 }

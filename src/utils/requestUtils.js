@@ -125,7 +125,7 @@ setInterval(() => {
  * @param {ethers.providers.Provider|null} provider - Optional provider to swap if needed
  * @returns {Promise<any>} - Result of the function
  */
-async function retryWithBackoff(fn, maxRetries = 5, initialDelay = 500, shouldRetry = null, provider = null) {
+async function retryWithBackoff(fn, maxRetries = 10, initialDelay = 1000, shouldRetry = null, provider = null) {
   let retries = 0;
   let currentRpc = null;
   
