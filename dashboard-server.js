@@ -23,12 +23,13 @@ process.env.CAKE_WBNB_RPC_URL = "https://bsc-dataseed2.binance.org/"; // For CAK
 process.env.BUSD_USDT_RPC_URL = "https://bsc-dataseed3.binance.org/"; // For BUSD/USDT
 
 // Check for essential environment variables
-const requiredEnvVars = ['PRIVATE_KEY', 'SESSION_SECRET'];
+const requiredEnvVars = ['PRIVATE_KEY'];
 const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 
 if (missingEnvVars.length > 0) {
   logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
-  process.exit(1);
+  logger.warn('Using fallback values for missing environment variables');
+  
 }
 
 // Log that we're using real blockchain data
