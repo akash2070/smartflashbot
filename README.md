@@ -76,6 +76,24 @@ node dashboard-server.js
 
 Access the dashboard at http://localhost:5000
 
+## Railway Deployment
+
+To deploy the Flash Loan Arbitrage Bot on Railway:
+
+1. Create a new project on Railway
+2. Connect your GitHub repository
+3. Configure the following environment variables:
+   - `PRIVATE_KEY`: Your wallet private key (without 0x prefix)
+   - `BNB_RPC_URL_KEY`: A reliable BNB Chain RPC URL
+   - `SESSION_SECRET`: A secure random string for dashboard authentication
+   - `WEBSOCKET_ENDPOINT_1`: (Optional) WebSocket endpoint for real-time updates
+   - `MEV_PROTECTION_ENABLED`: Set to "true" to enable MEV protection
+   - Other settings as needed from the .env.template file
+
+Railway will automatically use the Procfile to start both the dashboard (web) and the bot (worker) processes.
+
+**Note**: The bot is designed to handle temporary RPC connection issues and will automatically retry connections.
+
 ## Safety Features
 
 - Cooldown periods after failed transactions
