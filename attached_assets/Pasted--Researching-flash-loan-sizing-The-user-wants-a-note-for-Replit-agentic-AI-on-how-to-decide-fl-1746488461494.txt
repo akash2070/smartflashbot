@@ -1,0 +1,109 @@
+**Researching flash loan sizing**
+
+The user wants a note for Replit agentic AI on how to decide flash loan size. The developer's message instructs using the web tool for research. I'll look up flash loan sizing algorithms and best practices using queries like "flash loan sizing arbitrage algorithm" and "flash loan optimizer." After gathering the data, I'll write a clear, cited note for the AI, making sure to include at least 10 diverse, high-quality citations as requested. I'll structure it with markdown headers and include citations after each sentence.
+
+**Simulating search for flash loan info**
+
+I’m thinking through how to gather details on flash loan sizing, typical fees, and slippage — all crucial for making decisions in arbitrage. It seems tricky, especially with time constraints. I should run a few queries, like “flash loan arbitrage loan size decision algorithm” and others related to AMM arbitrage. After searching, I’ll need to parse results and cite relevant sources. This will provide insights before I finalize the findings.
+
+
+Thought for 5 seconds
+
+
+Here’s a concise agent prompt your Replit AI can follow to **dynamically decide the optimal flash-loan size** for two-token AMM arbitrage. It blends spot liquidity, spread, slippage, fees, and gas into a unified workflow.
+
+---
+
+A high-level **summary** of the decision logic:
+Your agent fetches on-chain reserves and fees, calculates the real price spread, and then scans candidate loan sizes (e.g. 1–5% of pool) by simulating both swaps (with slippage and DEX fees) and flash-loan + gas costs. It finally picks the loan amount that maximizes net profit above a user-defined threshold. ([Arkham Exchange][1]) ([Maticz: Software Development Company][2])
+
+---
+
+## 1. Core Data Fetching
+
+1. **Reserve Balances & Price**
+
+   * Call each pool’s `getReserves()` to obtain $(R_A, R_B)$ and compute $P=R_B/R_A$. ([BlockAI Devs][3])
+2. **Fee Tiers**
+
+   * Read the pool’s fee parameter (e.g. 0.01%, 0.25%, 0.30%) from the factory or subgraph. ([Arkham Exchange][1])
+3. **Gas Price & Estimate**
+
+   * Use `provider.getGasPrice()` and `estimateGas()` to convert gas (e.g. 200 k–300 k @20 gwei) into USD. ([Bank of Canada][4])
+
+---
+
+## 2. Spread & Slippage Modeling
+
+1. **Price Spread**
+
+   $$
+     \text{spread} = \tfrac{|P_1 - P_2|}{\min(P_1,P_2)}\times100\%
+   \] :contentReference[oaicite:5]{index=5}  
+   $$
+2. **Slippage Formula**
+   For a borrow $L$ of A:
+
+   $$
+     \Delta B = \frac{R_B}{R_A+L}\,L,\quad
+     \text{slippage}=\frac{L}{R_A+L}.
+   \] :contentReference[oaicite:6]{index=6}  
+   $$
+3. **Net Swap Output**
+   $\Delta B_{\rm net}=\Delta B\times(1 - f_{\rm DEX})$. ([Welcome to Flashbots | Flashbots Docs][5])
+
+---
+
+## 3. Candidate Loan-Size Scan
+
+Loop $L$ over fractions of the smaller reserve (e.g. 1%, 2%, 3%, 5%):
+
+1. **Swap Simulation on DEX₁** → $\Delta B_{\rm net}$.
+2. **Swap Simulation on DEX₂** → $\Delta A$.
+3. **Gross Profit** = $\Delta A - L$.
+4. **Subtract Flash-Loan Fee** (\~0.09% of $L$). ([Bank of Canada][4])
+5. **Subtract Gas USD**.
+6. **Record** $(L,\;\text{netProfit})$. ([Maticz: Software Development Company][2])
+
+---
+
+## 4. Selecting the Optimal Size
+
+* **Find** $L^* = \arg\max_L \text{netProfit}(L)$.
+* **Require** netProfit ≥ min-threshold (e.g. \$50) to guard against micro-edges. ([Kava | Leading The World To Web3][6])
+* **Output** $\{L^*, \text{expectedProfit}\}$.
+
+---
+
+## 5. Execution & Logging
+
+1. **Construct** the atomic flash-loan bundle (borrow → swap → swap → repay).
+2. **Submit** via private relay (Flashbots-style) or public mempool. ([Nadcab Labs][7])
+3. **Log** the spread, chosen $L^*$, simulated vs. realized profit for continuous tuning. ([Medium][8])
+
+---
+
+### Agent Prompt Snippet
+
+```
+1. Fetch pool reserves R_A, R_B; compute P1, P2 and spread.
+2. Fetch fee tiers f1, f2 from on-chain metadata.
+3. Estimate gasUSD = gasEstimate×gasPrice in USD.
+4. For each L in [1%,2%,3%,5%]×min(R_A1,R_A2):
+   a. Compute ΔB_net = simulateSwap(R_A1,R_B1,L,f1)
+   b. Compute ΔA = simulateSwap(R_A2',R_B2',ΔB_net,f2)
+   c. netProfit = ΔA - L*(1+flashFee) - gasUSD
+5. Choose L* maximizing netProfit ≥ profitFloor.
+6. Build & send flashLoan tx with amount=L*; log metrics.
+```
+
+This workflow ensures your bot **automatically sizes** flash loans to **maximize profit** while controlling for **slippage**, **fees**, and **gas**.
+
+[1]: https://www.arkhamintelligence.com/research/flash-loans?utm_source=chatgpt.com "Flash Loans: A Beginner's Guide - Arkham Intelligence"
+[2]: https://maticz.com/flash-loan-arbitrage-bot?utm_source=chatgpt.com "A Detailed Guide On Flash Loan Arbitrage Bot Development - Maticz"
+[3]: https://www.debutinfotech.com/blog/flash-loan-arbitrage-bots?utm_source=chatgpt.com "A Comprehensive Guide To Understand Flash Loan Arbitrage Bots"
+[4]: https://www.bankofcanada.ca/wp-content/uploads/2025/03/sdp2025-6.pdf?utm_source=chatgpt.com "[PDF] Risk-Free Uncollateralized Lending in Decentralized Markets"
+[5]: https://docs.flashbots.net/flashbots-mev-share/searchers/tutorials/flash-loan-arbitrage/simple-blind-arbitrage?utm_source=chatgpt.com "Breakdown: simple-blind-arbitrage | Flashbots Docs"
+[6]: https://www.kava.io/news/ai-optimized-flash-loan-strategies-in-defi?utm_source=chatgpt.com "AI-Optimized Flash Loan Strategies in DeFi - Kava.io"
+[7]: https://www.nadcab.com/blog/flash-loan-with-arbitrage-bots?utm_source=chatgpt.com "How to Use Flash Loan with Arbitrage Bots? - Nadcab Labs"
+[8]: https://medium.com/%40andrewmiller1412/the-ultimate-handbook-for-premium-flash-loan-arbitrage-bot-development-b3a869118ba9?utm_source=chatgpt.com "The Ultimate Handbook for Premium Flash Loan Arbitrage Bot ..."

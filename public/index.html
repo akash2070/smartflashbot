@@ -1,0 +1,696 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flash Loan Arbitrage Bot Dashboard</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.socket.io/4.4.1/socket.io.min.js"></script>
+    <style>
+        body {
+            background-color: #f8f9fa;
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        }
+        .card {
+            border-radius: 10px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+            margin-bottom: 20px;
+        }
+        .card-header {
+            background-color: #f1f8ff;
+            font-weight: bold;
+            border-bottom: 1px solid #dee2e6;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 15px;
+        }
+        .stat-value {
+            font-size: 24px;
+            font-weight: bold;
+            margin: 10px 0;
+        }
+        .stat-label {
+            font-size: 14px;
+            color: #6c757d;
+        }
+        .status-indicator {
+            width: 15px;
+            height: 15px;
+            border-radius: 50%;
+            display: inline-block;
+            margin-right: 5px;
+        }
+        .status-running {
+            background-color: #28a745;
+        }
+        .status-paused {
+            background-color: #ffc107;
+        }
+        .status-error {
+            background-color: #dc3545;
+        }
+        .status-initializing {
+            background-color: #6c757d;
+        }
+        .navbar-brand {
+            font-weight: bold;
+        }
+        .table th {
+            font-weight: 600;
+            color: #495057;
+        }
+        .profit-positive {
+            color: #28a745;
+            font-weight: bold;
+        }
+        .profit-negative {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .price-difference-low {
+            color: #6c757d;
+        }
+        .price-difference-medium {
+            color: #fd7e14;
+        }
+        .price-difference-high {
+            color: #dc3545;
+            font-weight: bold;
+        }
+        .timestamp {
+            font-size: 12px;
+            color: #6c757d;
+        }
+        .opportunity-row {
+            cursor: pointer;
+        }
+        .opportunity-row:hover {
+            background-color: #f1f8ff;
+        }
+        .safety-indicator {
+            display: inline-block;
+            width: 20px;
+            height: 20px;
+            border-radius: 50%;
+            margin-right: 10px;
+        }
+        .safety-active {
+            background-color: #dc3545;
+        }
+        .safety-inactive {
+            background-color: #28a745;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-expand-lg navbar-dark bg-dark">
+        <div class="container">
+            <a class="navbar-brand" href="#">Flash Loan Arbitrage Bot</a>
+            <div class="d-flex align-items-center">
+                <span class="status-indicator" id="botStatusIndicator"></span>
+                <span class="text-light" id="botStatusText">Initializing...</span>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container mt-4">
+        <div class="row">
+            <div class="col-md-4">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-label">Total Profit</div>
+                        <div class="stat-value" id="totalProfit">0 BNB</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-label">Executed Arbitrages</div>
+                        <div class="stat-value" id="executedArbitrages">0</div>
+                    </div>
+                </div>
+            </div>
+            <div class="col-md-4">
+                <div class="card stat-card">
+                    <div class="card-body">
+                        <div class="stat-label">Profitable Opportunities</div>
+                        <div class="stat-value" id="profitableOpportunities">0</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-4">
+                <div class="card">
+                    <div class="card-header">
+                        Safety Features
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="safety-indicator" id="cooldownIndicator"></div>
+                                    <div>
+                                        <div><strong>Cooldown</strong></div>
+                                        <div id="cooldownStatus">Inactive</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center mb-3">
+                                    <div class="safety-indicator" id="gasPriceIndicator"></div>
+                                    <div>
+                                        <div><strong>High Gas Price</strong></div>
+                                        <div id="gasPriceStatus">Normal (1.0 Gwei)</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="safety-indicator" id="competitiveBotsIndicator"></div>
+                                    <div>
+                                        <div><strong>Competitive Bots</strong></div>
+                                        <div id="competitiveBotsStatus">Not Detected</div>
+                                    </div>
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="d-flex align-items-center">
+                                    <div class="me-2">
+                                        <strong>Wallet Balance:</strong>
+                                    </div>
+                                    <div id="walletBalance">0 BNB</div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-3">
+                <div class="card">
+                    <div class="card-header d-flex align-items-center">
+                        <svg class="me-2" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M5.338 1.59a61.44 61.44 0 0 0-2.837.856.481.481 0 0 0-.328.39c-.554 4.157.726 7.19 2.253 9.188a10.725 10.725 0 0 0 2.287 2.233c.346.244.652.42.893.533.12.057.218.095.293.118a.55.55 0 0 0 .101.025.615.615 0 0 0 .1-.025c.076-.023.174-.061.294-.118.24-.113.547-.29.893-.533a10.726 10.726 0 0 0 2.287-2.233c1.527-1.997 2.807-5.031 2.253-9.188a.48.48 0 0 0-.328-.39c-.651-.213-1.75-.56-2.837-.855C9.552 1.29 8.531 1.067 8 1.067c-.53 0-1.552.223-2.662.524zM5.072.56C6.157.265 7.31 0 8 0s1.843.265 2.928.56c1.11.3 2.229.655 2.887.87a1.54 1.54 0 0 1 1.044 1.262c.596 4.477-.787 7.795-2.465 9.99a11.775 11.775 0 0 1-2.517 2.453 7.159 7.159 0 0 1-1.048.625c-.28.132-.581.24-.829.24s-.548-.108-.829-.24a7.158 7.158 0 0 1-1.048-.625 11.777 11.777 0 0 1-2.517-2.453C1.928 10.487.545 7.169 1.141 2.692A1.54 1.54 0 0 1 2.185 1.43 62.456 62.456 0 0 1 5.072.56z"/>
+                        </svg>
+                        <span>MEV Strategy Statistics</span>
+                    </div>
+                    <div class="card-body p-0">
+                        <table class="table table-bordered mb-0">
+                            <tbody>
+                                <tr>
+                                    <td>Backruns Detected</td>
+                                    <td class="text-end" id="backrunsDetected">0</td>
+                                </tr>
+                                <tr>
+                                    <td>Backruns Executed</td>
+                                    <td class="text-end" id="backrunsExecuted">0</td>
+                                </tr>
+                                <tr>
+                                    <td>Sandwiches Detected</td>
+                                    <td class="text-end" id="sandwichesDetected">0</td>
+                                </tr>
+                                <tr>
+                                    <td>Sandwiches Executed</td>
+                                    <td class="text-end" id="sandwichesExecuted">0</td>
+                                </tr>
+                                <tr>
+                                    <td>Hourly MEV Profit</td>
+                                    <td class="text-end" id="hourlyMevProfit">0.000000 BNB</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="col-md-5">
+                <div class="card">
+                    <div class="card-header">
+                        Performance
+                    </div>
+                    <div class="card-body">
+                        <canvas id="profitChart" height="200"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <span>Current Market Prices</span>
+                        <small class="timestamp" id="priceTimestamp">Last updated: N/A</small>
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Pair</th>
+                                        <th>PancakeSwap V2</th>
+                                        <th>PancakeSwap V3</th>
+                                        <th>ApeSwap</th>
+                                        <th>BiSwap</th>
+                                        <th>Max Difference</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="priceTable">
+                                    <!-- Price data will be inserted here dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        Arbitrage Opportunities
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Pair</th>
+                                        <th>Buy DEX</th>
+                                        <th>Sell DEX</th>
+                                        <th>Price Difference</th>
+                                        <th>Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="opportunitiesTable">
+                                    <!-- Opportunities will be inserted here dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row mt-4">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-header">
+                        Recent Transactions
+                    </div>
+                    <div class="card-body">
+                        <div class="table-responsive">
+                            <table class="table table-hover">
+                                <thead>
+                                    <tr>
+                                        <th>Transaction Hash</th>
+                                        <th>Route</th>
+                                        <th>Profit</th>
+                                        <th>Status</th>
+                                        <th>Timestamp</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="transactionsTable">
+                                    <!-- Transactions will be inserted here dynamically -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Connect to Socket.IO server
+            const socket = io();
+
+            // Chart initialization
+            const ctx = document.getElementById('profitChart').getContext('2d');
+            const profitChart = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: Array(24).fill(0).map((_, i) => `${i}h`),
+                    datasets: [{
+                        label: 'Hourly Profit (BNB)',
+                        data: Array(24).fill(0),
+                        backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                        borderColor: 'rgba(75, 192, 192, 1)',
+                        borderWidth: 2,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+
+            // Socket event handlers
+            socket.on('connect', function() {
+                console.log('Connected to server');
+                socket.emit('price-data'); // Request price data on connection
+            });
+
+            socket.on('disconnect', function() {
+                console.log('Disconnected from server');
+                updateBotStatus('error', 'Connection lost');
+            });
+
+            socket.on('stats', function(stats) {
+                updateStats(stats);
+                updateSafetyStatus(stats.safetyStatus);
+            });
+
+            socket.on('transactions', function(transactions) {
+                updateTransactions(transactions);
+            });
+
+            socket.on('opportunities', function(opportunities) {
+                updateOpportunities(opportunities);
+            });
+
+            socket.on('price-update', function(prices) {
+                updatePrices(prices);
+            });
+
+            // Functions to update the UI
+            function updateStats(stats) {
+                document.getElementById('totalProfit').textContent = `${stats.totalProfit} BNB`;
+                document.getElementById('executedArbitrages').textContent = stats.executedArbitrages;
+                document.getElementById('profitableOpportunities').textContent = stats.profitableOpportunities;
+                document.getElementById('walletBalance').textContent = `${stats.walletBalance} BNB`;
+                
+                // Update MEV statistics if available
+                if (stats.mevStats) {
+                    document.getElementById('backrunsDetected').textContent = stats.mevStats.backrunsDetected || 0;
+                    document.getElementById('backrunsExecuted').textContent = stats.mevStats.backrunsExecuted || 0;
+                    document.getElementById('sandwichesDetected').textContent = stats.mevStats.sandwichesDetected || 0;
+                    document.getElementById('sandwichesExecuted').textContent = stats.mevStats.sandwichesExecuted || 0;
+                    document.getElementById('hourlyMevProfit').textContent = `${stats.mevStats.hourlyProfit || '0.000000'} BNB`;
+                }
+                
+                updateBotStatus(stats.botStatus, stats.botStatusMessage);
+            }
+
+            function updateBotStatus(status, message) {
+                const indicator = document.getElementById('botStatusIndicator');
+                const text = document.getElementById('botStatusText');
+                
+                indicator.className = 'status-indicator';
+                
+                switch(status) {
+                    case 'running':
+                        indicator.classList.add('status-running');
+                        text.textContent = message || 'Running';
+                        break;
+                    case 'paused':
+                        indicator.classList.add('status-paused');
+                        text.textContent = message || 'Paused';
+                        break;
+                    case 'error':
+                        indicator.classList.add('status-error');
+                        text.textContent = message || 'Error';
+                        break;
+                    case 'initializing':
+                        indicator.classList.add('status-initializing');
+                        text.textContent = message || 'Initializing';
+                        break;
+                    default:
+                        indicator.classList.add('status-initializing');
+                        text.textContent = message || status;
+                }
+            }
+
+            function updateSafetyStatus(safetyStatus) {
+                // Cooldown
+                const cooldownIndicator = document.getElementById('cooldownIndicator');
+                cooldownIndicator.className = 'safety-indicator';
+                cooldownIndicator.classList.add(safetyStatus.cooldown.active ? 'safety-active' : 'safety-inactive');
+                
+                const cooldownStatus = document.getElementById('cooldownStatus');
+                if (safetyStatus.cooldown.active) {
+                    const minutes = Math.floor(safetyStatus.cooldown.remainingTime / 60000);
+                    const seconds = Math.floor((safetyStatus.cooldown.remainingTime % 60000) / 1000);
+                    cooldownStatus.textContent = `Active (${minutes}m ${seconds}s) - ${safetyStatus.cooldown.consecutiveFailures} failures`;
+                } else {
+                    cooldownStatus.textContent = 'Inactive';
+                }
+                
+                // Gas Price
+                const gasPriceIndicator = document.getElementById('gasPriceIndicator');
+                gasPriceIndicator.className = 'safety-indicator';
+                gasPriceIndicator.classList.add(safetyStatus.networkCongestion.isHighGasPrice ? 'safety-active' : 'safety-inactive');
+                
+                const gasPriceStatus = document.getElementById('gasPriceStatus');
+                gasPriceStatus.textContent = safetyStatus.networkCongestion.isHighGasPrice ? 
+                    `High (${safetyStatus.networkCongestion.currentGasPrice} Gwei)` : 
+                    `Normal (${safetyStatus.networkCongestion.currentGasPrice} Gwei)`;
+                
+                // Competitive Bots
+                const competitiveBotsIndicator = document.getElementById('competitiveBotsIndicator');
+                competitiveBotsIndicator.className = 'safety-indicator';
+                competitiveBotsIndicator.classList.add(safetyStatus.competitiveBots.detected ? 'safety-active' : 'safety-inactive');
+                
+                const competitiveBotsStatus = document.getElementById('competitiveBotsStatus');
+                competitiveBotsStatus.textContent = safetyStatus.competitiveBots.detected ? 
+                    `Detected (Slippage: ${safetyStatus.competitiveBots.slippageMultiplier}x)` : 
+                    'Not Detected';
+            }
+
+            function updateTransactions(transactions) {
+                const table = document.getElementById('transactionsTable');
+                table.innerHTML = '';
+                
+                if (transactions.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="5" class="text-center">No transactions yet</td>';
+                    table.appendChild(row);
+                    return;
+                }
+                
+                transactions.forEach(tx => {
+                    const row = document.createElement('tr');
+                    
+                    const hashCell = document.createElement('td');
+                    const hashLink = document.createElement('a');
+                    hashLink.href = `https://bscscan.com/tx/${tx.txHash}`;
+                    hashLink.target = '_blank';
+                    hashLink.textContent = `${tx.txHash.substring(0, 8)}...${tx.txHash.substring(tx.txHash.length - 6)}`;
+                    hashCell.appendChild(hashLink);
+                    
+                    const routeCell = document.createElement('td');
+                    routeCell.textContent = tx.route;
+                    
+                    const profitCell = document.createElement('td');
+                    profitCell.textContent = `${tx.profit} BNB`;
+                    profitCell.classList.add(parseFloat(tx.profit) > 0 ? 'profit-positive' : 'profit-negative');
+                    
+                    const statusCell = document.createElement('td');
+                    statusCell.textContent = tx.status;
+                    
+                    const timestampCell = document.createElement('td');
+                    timestampCell.textContent = new Date(tx.timestamp).toLocaleString();
+                    timestampCell.classList.add('timestamp');
+                    
+                    row.appendChild(hashCell);
+                    row.appendChild(routeCell);
+                    row.appendChild(profitCell);
+                    row.appendChild(statusCell);
+                    row.appendChild(timestampCell);
+                    
+                    table.appendChild(row);
+                });
+            }
+
+            function updateOpportunities(opportunities) {
+                const table = document.getElementById('opportunitiesTable');
+                table.innerHTML = '';
+                
+                if (opportunities.length === 0) {
+                    const row = document.createElement('tr');
+                    row.innerHTML = '<td colspan="5" class="text-center">No arbitrage opportunities found</td>';
+                    table.appendChild(row);
+                    return;
+                }
+                
+                opportunities.forEach(opp => {
+                    const row = document.createElement('tr');
+                    row.classList.add('opportunity-row');
+                    
+                    const pairCell = document.createElement('td');
+                    pairCell.textContent = opp.pair;
+                    
+                    const buyDexCell = document.createElement('td');
+                    buyDexCell.textContent = formatDexName(opp.dex1.name);
+                    
+                    const sellDexCell = document.createElement('td');
+                    sellDexCell.textContent = formatDexName(opp.dex2.name);
+                    
+                    const priceDiffCell = document.createElement('td');
+                    priceDiffCell.textContent = `${opp.priceDiffPercent}%`;
+                    
+                    // Set color based on price difference
+                    const priceDiff = parseFloat(opp.priceDiffPercent);
+                    if (priceDiff < 0.3) {
+                        priceDiffCell.classList.add('price-difference-low');
+                    } else if (priceDiff < 1.0) {
+                        priceDiffCell.classList.add('price-difference-medium');
+                    } else {
+                        priceDiffCell.classList.add('price-difference-high');
+                    }
+                    
+                    const timestampCell = document.createElement('td');
+                    timestampCell.textContent = new Date(opp.timestamp).toLocaleString();
+                    timestampCell.classList.add('timestamp');
+                    
+                    row.appendChild(pairCell);
+                    row.appendChild(buyDexCell);
+                    row.appendChild(sellDexCell);
+                    row.appendChild(priceDiffCell);
+                    row.appendChild(timestampCell);
+                    
+                    table.appendChild(row);
+                });
+            }
+
+            function updatePrices(prices) {
+                const table = document.getElementById('priceTable');
+                table.innerHTML = '';
+                
+                let latestTimestamp = null;
+                
+                for (const pair in prices) {
+                    const priceData = prices[pair];
+                    const row = document.createElement('tr');
+                    
+                    // Update timestamp
+                    if (priceData.timestamp && (!latestTimestamp || new Date(priceData.timestamp) > new Date(latestTimestamp))) {
+                        latestTimestamp = priceData.timestamp;
+                    }
+                    
+                    // Add pair name
+                    const pairCell = document.createElement('td');
+                    pairCell.textContent = pair;
+                    row.appendChild(pairCell);
+                    
+                    // Get all prices for this pair
+                    const dexes = ['pancakeV2', 'pancakeV3', 'apeswap', 'biswap'];
+                    const validPrices = [];
+                    
+                    dexes.forEach(dex => {
+                        const cell = document.createElement('td');
+                        
+                        let priceText = 'N/A';
+                        if (priceData[dex] && priceData[dex] !== 'N/A') {
+                            if (typeof priceData[dex] === 'object' && priceData[dex].price) {
+                                priceText = formatPrice(priceData[dex].price);
+                                if (priceData[dex].price !== 'N/A') {
+                                    validPrices.push({
+                                        dex,
+                                        price: parseFloat(priceData[dex].price)
+                                    });
+                                }
+                            } else {
+                                priceText = formatPrice(priceData[dex]);
+                                if (priceData[dex] !== 'N/A') {
+                                    validPrices.push({
+                                        dex,
+                                        price: parseFloat(priceData[dex])
+                                    });
+                                }
+                            }
+                        }
+                        
+                        cell.textContent = priceText;
+                        row.appendChild(cell);
+                    });
+                    
+                    // Calculate max price difference
+                    const maxDiffCell = document.createElement('td');
+                    if (validPrices.length >= 2) {
+                        // Find min and max prices
+                        let minPrice = Infinity;
+                        let maxPrice = -Infinity;
+                        
+                        validPrices.forEach(item => {
+                            minPrice = Math.min(minPrice, item.price);
+                            maxPrice = Math.max(maxPrice, item.price);
+                        });
+                        
+                        // Calculate percentage difference
+                        const avgPrice = (minPrice + maxPrice) / 2;
+                        const priceDiff = ((maxPrice - minPrice) / avgPrice) * 100;
+                        
+                        maxDiffCell.textContent = `${priceDiff.toFixed(2)}%`;
+                        
+                        // Set color based on price difference
+                        if (priceDiff < 0.3) {
+                            maxDiffCell.classList.add('price-difference-low');
+                        } else if (priceDiff < 1.0) {
+                            maxDiffCell.classList.add('price-difference-medium');
+                        } else {
+                            maxDiffCell.classList.add('price-difference-high');
+                        }
+                    } else {
+                        maxDiffCell.textContent = 'N/A';
+                    }
+                    
+                    row.appendChild(maxDiffCell);
+                    table.appendChild(row);
+                }
+                
+                // Update timestamp display
+                if (latestTimestamp) {
+                    document.getElementById('priceTimestamp').textContent = `Last updated: ${new Date(latestTimestamp).toLocaleString()}`;
+                }
+            }
+
+            // Helper functions
+            function formatPrice(price) {
+                if (price === 'N/A' || isNaN(price)) return 'N/A';
+                
+                // Format based on range
+                const numPrice = parseFloat(price);
+                if (numPrice < 0.001) return numPrice.toExponential(4);
+                if (numPrice < 1) return numPrice.toFixed(6);
+                if (numPrice < 100) return numPrice.toFixed(4);
+                if (numPrice < 10000) return numPrice.toFixed(2);
+                return numPrice.toFixed(0);
+            }
+
+            function formatDexName(name) {
+                switch(name) {
+                    case 'pancakeV2': return 'PancakeSwap V2';
+                    case 'pancakeV3': return 'PancakeSwap V3';
+                    case 'apeswap': return 'ApeSwap';
+                    case 'biswap': return 'BiSwap';
+                    default: return name;
+                }
+            }
+
+            // Request initial data
+            socket.emit('price-data');
+        });
+    </script>
+
+    <footer class="bg-dark text-white text-center py-4 mt-5">
+        <div class="container">
+            <p class="mb-0">Flash Loan Arbitrage Bot Dashboard &copy; 2023</p>
+        </div>
+    </footer>
+</body>
+</html>

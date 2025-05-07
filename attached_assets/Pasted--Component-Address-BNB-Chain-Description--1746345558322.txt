@@ -1,0 +1,13 @@
+| Component                      | Address (BNB Chain)                          | Description                                       |                                                                                                           |
+| ------------------------------ | -------------------------------------------- | ------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| **PancakeV3Factory**           | `0x0BFbCF9fa4f9C56B0F40a671Ad40E0805A091865` | Deploys and manages V3 liquidity pools            |                                                                                                           |
+| **SwapRouter (V3)**            | `0x1b81D678ffb9C0263b24A97847620C99d213eB14` | Facilitates token swaps across V3 pools           |                                                                                                           |
+| **SmartRouter (Universal)**    | `0x13f4EA83D0bd40E75C8222255bc855a974568Dd4` | Routes trades across V2, V3, and StableSwap pools |                                                                                                           |
+| **NonfungiblePositionManager** | `0x46A15B0b27311cedF172AB29E4f4766fbE7F4364` | Manages liquidity positions as NFTs               |                                                                                                           |
+| **QuoterV2**                   | `0xB048Bbc1Ee6b733FFfCFb9e9CeF7375518e25997` | Provides on-chain price quotes for swaps          |                                                                                                           |
+| **TickLens**                   | `0x9a489505a00cE272eAa5e07Dba6491314CaE3796` | Retrieves tick data from pools                    | ([Product Overview \| PancakeSwap][1], [PancakeSwap Developer][2], [Npm][3], [SubQuery Documentation][4]) |
+
+[1]: https://docs.pancakeswap.finance/developers/smart-contracts/pancakeswap-exchange/v3-contracts/pancakev3factory?utm_source=chatgpt.com "PancakeV3Factory | PancakeSwap"
+[2]: https://developer.pancakeswap.finance/contracts/v3/addresses?utm_source=chatgpt.com "PancakeSwap v3 Addresses"
+[3]: https://www.npmjs.com/package/%40pancakeswap%2Fsmart-router?utm_source=chatgpt.com "pancakeswap/smart-router - NPM"
+[4]: https://academy.subquery.network/indexer/quickstart/quickstart_chains/bsc-pancakeswap-v3.html?utm_source=chatgpt.com "BSC Quick Start - PancakeSwap - SubQuery Documentation"

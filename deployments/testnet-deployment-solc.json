@@ -1,0 +1,10 @@
+{
+  "network": "BSC Testnet",
+  "chainId": 97,
+  "contractAddress": "0x8b6653C8F5ADB9C77Ff930406ada8550f051E984",
+  "owner": "0xB486B806cDade0C4CCB13d08a51C6485Ed950002",
+  "deploymentTx": "0x094663be2a89edfb661caca605b9af869b8e2a361f78fcf18acf84120d68bda6",
+  "contractType": "MinimalTestContract",
+  "initialized": true,
+  "deploymentDate": "2025-05-05T20:05:00.000Z"
+}

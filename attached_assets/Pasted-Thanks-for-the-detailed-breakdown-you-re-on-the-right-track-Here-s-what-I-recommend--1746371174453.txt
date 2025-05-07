@@ -1,0 +1,90 @@
+Thanks for the detailed breakdown — you're on the right track. Here's what I recommend:
+
+---
+
+### ✅ Recommended Plan
+
+#### 1. **Keep using ethers.js (as you're doing)**
+
+Manual access gives flexibility. But…
+
+#### 2. **✅ Add the following enhancements:**
+
+---
+
+### 🔧 a. **Use PancakeSwap V3 SDK for decoding price (recommended)**
+
+Instead of manually squaring `sqrtPriceX96`, let the SDK calculate price properly with token decimals handled. It's more reliable and readable.
+
+```bash
+npm install @pancakeswap/sdk-core@latest @pancakeswap/v3-sdk@latest
+```
+
+Update your `priceService.js`:
+
+```js
+const { Token } = require('@pancakeswap/sdk-core');
+const { PriceMath } = require('@pancakeswap/v3-sdk');
+
+function calculatePriceFromSlot0(sqrtPriceX96, token0, token1) {
+  const price = PriceMath.getPriceAtSqrtRatio(
+    sqrtPriceX96,
+    token0,
+    token1
+  );
+  return price.toSignificant(6);
+}
+```
+
+---
+
+### 🔧 b. **Enhance zero-checks + fallback logic**
+
+Add checks like:
+
+```js
+if (!slot0 || slot0.sqrtPriceX96.eq(0)) {
+  console.warn(`Zero price detected in pool ${poolAddress}`);
+  return null; // or return a fallback API price
+}
+```
+
+Also validate liquidity:
+
+```js
+const liquidity = await poolContract.liquidity();
+if (liquidity.eq(0)) {
+  console.warn("Zero liquidity pool. Skipping...");
+  return null;
+}
+```
+
+---
+
+### 🔧 c. **Add fallback mechanism (optional)**
+
+If V3 data fails, fallback to:
+
+* A centralized price API (e.g., CoinGecko)
+* Or average from V2
+
+Example:
+
+```js
+if (!price) {
+  price = await fetchFromBackupPriceFeed(token0, token1); // implement this as needed
+}
+```
+
+---
+
+### ✅ Summary
+
+| Step                     | Recommendation                               |
+| ------------------------ | -------------------------------------------- |
+| Price Calculation        | ✅ Use PancakeSwap V3 SDK                     |
+| Zero Handling            | ✅ Add `sqrtPriceX96 == 0` & liquidity checks |
+| Fallback Prices          | ✅ Add CoinGecko/V2 fallback                  |
+| Maintain ethers.js Usage | ✅ Good choice                                |
+
+Would you like me to give you a complete upgraded version of `priceService.js` with all this logic implemented?

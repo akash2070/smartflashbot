@@ -1,0 +1,99 @@
+To integrate **PancakeSwap V3 flash loans** in your Node.js + Solidity-based arbitrage bot, here are all the **libraries and dependencies** you need to install, grouped by purpose:
+
+---
+
+## ✅ 1. **Core Blockchain Libraries**
+
+These are required for interacting with BSC and smart contracts:
+
+```bash
+npm install ethers@5.7.2
+npm install dotenv
+```
+
+---
+
+## ✅ 2. **PancakeSwap & DEX SDKs**
+
+Required to interact with PancakeSwap V3 smart contracts and calculate routes:
+
+```bash
+npm install @pancakeswap/v3-sdk @pancakeswap/smart-router
+npm install @uniswap/sdk-core
+```
+
+* `@pancakeswap/v3-sdk`: Core math and token utilities (fork of Uniswap V3 SDK)
+* `@pancakeswap/smart-router`: For finding the most efficient trade paths
+* `@uniswap/sdk-core`: Used internally by both SDKs for token/price formatting
+
+---
+
+## ✅ 3. **GraphQL & HTTP Requests**
+
+For querying The Graph or price APIs:
+
+```bash
+npm install axios graphql-request
+```
+
+---
+
+## ✅ 4. **Optional Utility Libraries (Recommended)**
+
+```bash
+npm install moment
+npm install winston
+```
+
+* `moment`: For timestamp and duration formatting
+* `winston`: For log handling (alerts, events, errors)
+
+---
+
+## ✅ 5. **Real-time Dashboard (Optional for Monitoring)**
+
+Only needed if you're building a web interface:
+
+```bash
+npm install express socket.io chart.js
+```
+
+---
+
+## ✅ 6. **Solidity Smart Contract Dependencies (Hardhat or Foundry)**
+
+If you're using **Hardhat** for smart contract development:
+
+```bash
+npm install --save-dev hardhat @nomiclabs/hardhat-ethers ethers
+npm install @pancakeswap/v3-core @pancakeswap/v3-periphery
+```
+
+These packages include:
+
+* `IPancakeV3Pool`
+* `IPancakeV3FlashCallback`
+* Router, Quoter, Factory ABIs
+
+---
+
+### 🧠 Final `package.json` Summary (Required)
+
+| Library                     | Purpose                          |
+| --------------------------- | -------------------------------- |
+| `ethers`                    | Blockchain interaction           |
+| `dotenv`                    | Secure environment variables     |
+| `@pancakeswap/v3-sdk`       | Core PancakeSwap V3 logic        |
+| `@pancakeswap/smart-router` | Finds the best trading paths     |
+| `@uniswap/sdk-core`         | Shared math/token utilities      |
+| `graphql-request`           | The Graph queries                |
+| `axios`                     | API requests                     |
+| `moment`                    | Date/time formatting             |
+| `winston`                   | Logging system                   |
+| `express`, `socket.io`      | (Optional) Web UI for monitoring |
+| `@pancakeswap/v3-core`      | Smart contract ABIs              |
+| `@pancakeswap/v3-periphery` | Router, callback interfaces      |
+
+---
+
+Would you like me to generate the `package.json` file or `npm install` script for all of this in one go?

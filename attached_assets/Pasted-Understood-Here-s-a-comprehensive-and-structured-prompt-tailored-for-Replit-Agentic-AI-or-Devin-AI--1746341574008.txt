@@ -1,0 +1,165 @@
+Understood. Here's a comprehensive and structured prompt tailored for Replit Agentic AI or Devin AI to develop your autonomous flash loan arbitrage bot on the BNB Chain:
+
+---
+
+### 🤖 Project Title:
+
+**Autonomous Flash Loan Arbitrage Bot with MEV Protection on BNB Chain**
+
+---
+
+### ✅ Objective:
+
+Develop a fully autonomous flash loan arbitrage bot that:
+
+* Utilizes flash loans from **PancakeSwap V3** on the BNB Chain.
+* Executes arbitrage between **PancakeSwap V2**, **PancakeSwap V3**, and **ApeSwap**.
+* Automatically selects the optimal flash loan amount and trading pair to maximize net profit.
+* Calculates slippage based on loan size and executes trades only when profit is confirmed, factoring in all gas and fee costs.
+* Incorporates MEV protection and is MEV-aware.
+
+---
+
+### ⚙️ Core Features:
+
+1. **DEX Support (only the following):**
+
+   * PancakeSwap V2 & V3
+   * ApeSwap
+
+2. **Token Pairs:**
+
+   * CAKE/BNB
+   * BNB/USDT
+   * WBNB/USDT
+   * BNB/BUSD
+   * WBNB/BUSD
+   * BUSD/USDT
+
+3. **Flash Loan:**
+
+   * Source: PancakeSwap V3
+   * Auto-select best token pair and amount based on pool liquidity
+   * Limit: Max 5% of smaller pool’s liquidity
+
+4. **Profit Strategy:**
+
+   * Auto-calculate all costs (swap fees, slippage, gas)
+   * Determine break-even threshold dynamically
+   * Execute only if **net profit > threshold**
+   * Real-time routing and slippage detection
+
+5. **MEV Integration:**
+
+   * Search for MEV opportunities
+   * Protect from front-running via private transactions or Flashbots-style relayers (if available on BNB)
+   * Bundle or re-order transactions if possible for protection
+
+6. **Bot Behavior:**
+
+   * Autonomous execution loop (every X seconds or event-driven)
+   * Can backrun or sandwich if profitable and safe (MEV safe mode)
+   * Logs every opportunity (profitable or not)
+
+---
+
+### 📚 Required Libraries and Tools:
+
+* **Programming Language:** JavaScript (Node.js) or Python
+* **Blockchain Interaction:**
+
+  * For JavaScript: `ethers.js`, `web3.js`
+  * For Python: `web3.py`
+* **Development Framework:**
+
+  * `Hardhat` or `Foundry` for smart contract development and testing
+* **Additional Tools:**
+
+  * `dotenv` for managing environment variables
+  * `axios` or `requests` for API calls
+  * `express` (optional) for setting up a dashboard or API endpoints
+
+---
+
+### 🧠 Execution Steps:
+
+1. **Setup Development Environment:**
+
+   * Initialize a Node.js or Python project.
+   * Install the required libraries mentioned above.
+   * Configure environment variables for sensitive data like private keys and API endpoints.
+
+2. **Connect to BNB Chain:**
+
+   * Use a BNB Chain node provider (e.g., Ankr, QuickNode, or a self-hosted node).
+   * Ensure the bot can read blockchain data and send transactions.
+
+3. **Integrate DEX Contracts:**
+
+   * Import the ABIs and addresses for PancakeSwap V2, PancakeSwap V3, and ApeSwap routers and factories.
+   * Set up contract instances using the web3 library.
+
+4. **Implement Flash Loan Logic:**
+
+   * Identify the optimal trading pair and calculate the maximum safe loan amount (up to 5% of the smaller pool's liquidity).
+   * Calculate expected slippage based on the loan size.
+   * Determine the break-even point by considering gas fees and swap fees.
+   * Execute the flash loan and arbitrage trades only if the expected profit exceeds the break-even threshold.
+
+5. **Incorporate MEV Protection:**
+
+   * Monitor the mempool for potential front-running opportunities.
+   * Use private transaction submission methods or integrate with MEV protection services compatible with BNB Chain.
+
+6. **Logging and Monitoring:**
+
+   * Log all executed trades, including timestamps, profit/loss, and gas used.
+   * Optionally, set up a dashboard or alert system to monitor bot activity and performance.
+
+---
+
+### 🔗 Essential Addresses and ABIs:
+
+**PancakeSwap V2:**
+
+* Router Address: `0x10ED43C718714eb63d5aA57B78B54704E256024E`
+* Factory Address: `0xBCfCcbde45cE874adCB698cC183deBcF17952812`
+* Router ABI: [PancakeSwap V2 Router ABI](https://docs.pancakeswap.finance/developers/smart-contracts/pancakeswap-exchange/v2-contracts/router-v2)
+* Factory ABI: [PancakeSwap V2 Factory ABI](https://docs.pancakeswap.finance/developers/smart-contracts/pancakeswap-exchange/v2-contracts/factory-v2)
+
+**PancakeSwap V3:**
+
+* Router Address: `0x13f4EA83D0bd40E75C8222255bc855a974568Dd4`
+* Factory Address: `0x1097053Fd2ea711dad45caCcc45EfF7548fCB362`
+* Router ABI: [PancakeSwap V3 Router ABI](https://docs.pancakeswap.finance/developers/smart-contracts/pancakeswap-exchange/v3-contracts/smartrouterv3)
+* Factory ABI: [PancakeSwap V3 Factory ABI](https://docs.pancakeswap.finance/developers/smart-contracts/pancakeswap-exchange/v3-contracts/pancakev3factory)
+
+**ApeSwap:**
+
+* Router Address: `0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607`
+* Factory Address: `0x0841BD0B734E4F5853f0dD8d7Ea041c241fb0Da6`
+* Router ABI: [ApeSwap Router ABI](https://bscscan.com/address/0xC0788A3aD43d79aa53B09c2EaCc313A787d1d607#code)
+* Factory ABI: [ApeSwap Factory ABI](https://bscscan.com/address/0x0841BD0B734E4F5853f0dD8d7Ea041c241fb0Da6#code)
+
+**Token Pair Addresses:**
+
+* CAKE/BNB (PancakeSwap V2): `0x0ed7e52944161450477ee417de9cd3a859b14fd0`
+* BNB/USDT (PancakeSwap V3): [Pair Address](https://pancakeswap.finance/info/bnb/pairs/0x0a3fe961c8dad4bbaece6210663d2aa5984a10cd)
+* BNB/BUSD (PancakeSwap V2): `0x58f876857a02d6762e0101bb5c46a8c1ed44dc16`
+* BUSD/USDT (PancakeSwap V2): [Pair Address](https://pancakeswap.finance/info/pairs/0x0a3fe961c8dad4bbaece6210663d2aa5984a10cd)
+* WBNB/BUSD (PancakeSwap V2): `0x58f876857a02d6762e0101bb5c46a8c1ed44dc16`
+* WBNB/USDT (PancakeSwap V3): [Pair Address](https://pancakeswap.finance/info/pairs/0x0a3fe961c8dad4bbaece6210663d2aa5984a10cd)
+
+*Note: For ABIs not directly linked, you can retrieve them from BscScan by navigating to the contract address and accessing the "Contract" tab.*
+
+---
+
+### 🛡️ MEV Protection Strategy:
+
+* Monitor the mempool for potential front-running or sandwich attack opportunities.
+* Utilize private transaction submission methods or integrate with MEV protection services compatible with BNB Chain.
+* Implement transaction bundling or reordering strategies to minimize MEV risks.
+
+---
+
+This structured prompt provides Replit Agentic AI or Devin AI with all the necessary information to develop your autonomous flash loan arbitrage bot on the BNB Chain. If you require further assistance or specific code implementations, feel free to ask.

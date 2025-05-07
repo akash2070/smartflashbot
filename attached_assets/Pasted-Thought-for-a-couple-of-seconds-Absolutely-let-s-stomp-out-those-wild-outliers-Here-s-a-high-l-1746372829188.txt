@@ -1,0 +1,76 @@
+Thought for a couple of seconds
+
+
+Absolutely—let’s stomp out those wild outliers. Here’s a high-level plan and some sample code you can adapt to your stack:
+
+---
+
+## 1. Sanity checks & thresholds
+
+Before you surface a price, run it through simple guards:
+
+* **Max/min bounds** (e.g. ignore any price ≤ 0 or ≥ 10× the typical market rate)
+* **Percentage‐change cap** (e.g. if price deviates by more than, say, 5% from an average of other DEXs, drop it)
+* **Parse-error fallback** (if your JSON parse produces an absurdly large integer, catch it and fall back to `null` or the last good value)
+
+```js
+// Example in JavaScript / Node.js
+const MAX_PRICE = 2;    // e.g. for BUSD/USDT we know it should hover around ~1
+const MIN_PRICE = 0.5;
+const MAX_DIFF_PERCENT = 5;  
+
+function sanitizePrice(pair, dexPrices) {
+  const raw = dexPrices[pair];
+  let price = Number(raw);
+  if (isNaN(price)) {
+    throw new Error(`Invalid number for ${pair}: ${raw}`);
+  }
+  // simple bounds check
+  if (price < MIN_PRICE || price > MAX_PRICE) {
+    console.warn(`Dropping ${pair} price ${price} outside bounds`);
+    return null;
+  }
+  // compare against average of others
+  const others = Object.values(dexPrices).filter(p => p !== raw).map(Number);
+  const avg = others.reduce((a,b)=>a+b, 0)/others.length;
+  if (Math.abs(price - avg)/avg * 100 > MAX_DIFF_PERCENT) {
+    console.warn(`Dropping ${pair} price ${price} deviates >${MAX_DIFF_PERCENT}% from avg ${avg}`);
+    return null;
+  }
+  return price;
+}
+```
+
+---
+
+## 2. Logging & alerting
+
+Whenever a price is dropped, log the raw response (timestamped) so you can trace back which DEX or API call mis-behaved.
+
+```js
+if (!sanitized) {
+  logger.error({
+    pair,
+    rawPrice: raw,
+    dex: currentDex,
+    timestamp: new Date().toISOString()
+  });
+}
+```
+
+---
+
+## 3. Fallback strategy
+
+* If all DEXs for a pair are filtered out, fall back to a trusted oracle or simply display “N/A” rather than garbage data.
+* Optionally cache the last valid price and display “stale” with a warning flag.
+
+---
+
+### Next steps
+
+1. Which language or framework is your pipeline in?
+2. Do you already collect prices into a single object or row per pair?
+3. Can you share a snippet of your fetch/parsing logic?
+
+With that info I can give you copy-and-paste–ready fixes. Let me know!

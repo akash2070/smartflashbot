@@ -1,0 +1,576 @@
+// SPDX-License-Identifier: MIT
+pragma solidity 0.8.17;
+
+import "@openzeppelin/contracts-upgradeable/proxy/utils/Initializable.sol";
+import "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/proxy/utils/UUPSUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/ReentrancyGuardUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/security/PausableUpgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/IERC20Upgradeable.sol";
+import "@openzeppelin/contracts-upgradeable/token/ERC20/utils/SafeERC20Upgradeable.sol";
+
+// PancakeSwap V3 interfaces
+interface IPancakeV3Pool {
+    function flash(
+        address recipient,
+        uint256 amount0,
+        uint256 amount1,
+        bytes calldata data
+    ) external;
+}
+
+interface IPancakeV3Factory {
+    function getPool(
+        address tokenA,
+        address tokenB,
+        uint24 fee
+    ) external view returns (address pool);
+}
+
+interface IPancakeV2Router {
+    function swapExactTokensForTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external returns (uint[] memory amounts);
+    
+    function getAmountsOut(
+        uint amountIn, 
+        address[] calldata path
+    ) external view returns (uint[] memory amounts);
+}
+
+interface IApeSwapRouter {
+    function swapExactTokensForTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external returns (uint[] memory amounts);
+    
+    function getAmountsOut(
+        uint amountIn, 
+        address[] calldata path
+    ) external view returns (uint[] memory amounts);
+}
+
+interface IBiSwapRouter {
+    function swapExactTokensForTokens(
+        uint amountIn,
+        uint amountOutMin,
+        address[] calldata path,
+        address to,
+        uint deadline
+    ) external returns (uint[] memory amounts);
+    
+    function getAmountsOut(
+        uint amountIn, 
+        address[] calldata path
+    ) external view returns (uint[] memory amounts);
+}
+
+/**
+ * @title FlashLoanArbitrage
+ * @dev Implements flash loan arbitrage functionality between multiple DEXs on BNB Chain
+ * Exclusively uses PancakeSwap V3 for flash loans and implements MEV protection
+ */
+contract FlashLoanArbitrage is 
+    Initializable, 
+    OwnableUpgradeable, 
+    UUPSUpgradeable, 
+    ReentrancyGuardUpgradeable,
+    PausableUpgradeable 
+{
+    using SafeERC20Upgradeable for IERC20Upgradeable;
+    
+    // Contract state variables
+    IPancakeV3Factory public pancakeV3Factory;
+    IPancakeV2Router public pancakeV2Router;
+    IApeSwapRouter public apeSwapRouter;
+    IBiSwapRouter public biSwapRouter;
+    
+    // Constants - Fee tiers for PancakeSwap V3
+    uint24 public constant POOL_FEE_TIER_ULTRA_LOWEST = 10;     // 0.01%
+    uint24 public constant POOL_FEE_TIER_LOWEST = 100;         // 0.05%
+    uint24 public constant POOL_FEE_TIER_LOW = 500;           // 0.05%
+    uint24 public constant POOL_FEE_TIER_MEDIUM = 2500;       // 0.25%
+    uint24 public constant POOL_FEE_TIER_HIGH = 10000;        // 1.00%
+    
+    // DEX Slippage caps (as basis points, 1 bp = 0.01%)
+    uint256 public pancakeV3SlippageCap;
+    uint256 public biSwapSlippageCap;
+    uint256 public pancakeV2SlippageCap;
+    uint256 public apeSwapSlippageCap;
+    
+    // MEV Protection settings
+    bool public mevProtectionEnabled;
+    bool public backrunEnabled;
+    bool public frontrunEnabled;
+    uint256 public priorityFeeMultiplier;
+    
+    // Transaction tracking
+    uint256 public totalTrades;
+    uint256 public successfulTrades;
+    uint256 public totalProfit;
+    
+    // Events
+    event ArbitrageExecuted(
+        address tokenBorrow,
+        uint256 amountBorrowed,
+        uint256 profit,
+        address buyDex,
+        address sellDex
+    );
+    
+    event Withdrawal(
+        address token,
+        address recipient,
+        uint256 amount
+    );
+    
+    event MevProtectionUpdated(
+        bool enabled,
+        bool backrunEnabled,
+        bool frontrunEnabled
+    );
+    
+    event SlippageCapUpdated(
+        string dex,
+        uint256 slippageCapBps
+    );
+    
+    struct FlashCallbackData {
+        address tokenBorrow;
+        address tokenPay;
+        uint256 amountBorrow;
+        address buyDex;
+        address sellDex;
+        address[] buyPath;
+        address[] sellPath;
+    }
+
+    /// @custom:oz-upgrades-unsafe-allow constructor
+    constructor() {
+        _disableInitializers();
+    }
+    
+    /**
+     * @dev Initializes the contract with core dependencies and settings
+     */
+    function initialize(
+        address _pancakeV3Factory,
+        address _pancakeV2Router,
+        address _apeSwapRouter,
+        address _biSwapRouter
+    ) public initializer {
+        // Initialize all the OpenZeppelin upgradeable contracts
+        __Ownable_init();
+        __UUPSUpgradeable_init();
+        __ReentrancyGuard_init();
+        __Pausable_init();
+        
+        pancakeV3Factory = IPancakeV3Factory(_pancakeV3Factory);
+        pancakeV2Router = IPancakeV2Router(_pancakeV2Router);
+        apeSwapRouter = IApeSwapRouter(_apeSwapRouter);
+        biSwapRouter = IBiSwapRouter(_biSwapRouter);
+        
+        // Set default slippage caps
+        pancakeV3SlippageCap = 50;  // 0.5%
+        biSwapSlippageCap = 70;     // 0.7%
+        pancakeV2SlippageCap = 100; // 1.0%
+        apeSwapSlippageCap = 120;   // 1.2%
+        
+        // Initialize MEV protection settings
+        mevProtectionEnabled = true;
+        backrunEnabled = true;
+        frontrunEnabled = true;
+        priorityFeeMultiplier = 130; // 1.3x default priority fee
+        
+        // Initialize counters
+        totalTrades = 0;
+        successfulTrades = 0;
+        totalProfit = 0;
+    }
+    
+    /**
+     * @dev Required by UUPS proxy pattern
+     */
+    function _authorizeUpgrade(address newImplementation) internal override onlyOwner {}
+    
+    /**
+     * @dev Execute arbitrage with flash loan
+     * @param tokenBorrow Token to borrow via flash loan
+     * @param tokenPay Token to swap to and pay back the flash loan
+     * @param amountToBorrow Amount of tokenBorrow to flash loan
+     * @param poolFee Fee tier for the flash loan pool
+     * @param buyDex Address of the DEX to buy from
+     * @param sellDex Address of the DEX to sell to
+     * @param buyPath Path for the first swap (usually 2 tokens)
+     * @param sellPath Path for the second swap (usually 2 tokens)
+     */
+    function executeArbitrage(
+        address tokenBorrow,
+        address tokenPay,
+        uint256 amountToBorrow,
+        uint24 poolFee,
+        address buyDex,
+        address sellDex,
+        address[] calldata buyPath,
+        address[] calldata sellPath
+    ) external onlyOwner nonReentrant whenNotPaused {
+        require(amountToBorrow > 0, "Amount must be greater than 0");
+        require(buyDex != sellDex, "Buy and sell DEX must be different");
+        
+        // Find the appropriate V3 pool for the flash loan
+        address poolAddress = pancakeV3Factory.getPool(tokenBorrow, tokenPay, poolFee);
+        require(poolAddress != address(0), "Pool not found");
+        
+        // Prepare callback data
+        FlashCallbackData memory data = FlashCallbackData({
+            tokenBorrow: tokenBorrow,
+            tokenPay: tokenPay,
+            amountBorrow: amountToBorrow,
+            buyDex: buyDex,
+            sellDex: sellDex,
+            buyPath: buyPath,
+            sellPath: sellPath
+        });
+        
+        // Determine which amounts to use for the flash loan
+        uint256 amount0 = tokenBorrow < tokenPay ? amountToBorrow : 0;
+        uint256 amount1 = tokenBorrow < tokenPay ? 0 : amountToBorrow;
+        
+        // Execute the flash loan
+        IPancakeV3Pool(poolAddress).flash(
+            address(this),
+            amount0,
+            amount1,
+            abi.encode(data)
+        );
+    }
+    
+    /**
+     * @dev PancakeSwap V3 flash loan callback function
+     * @param fee0 Fee for token0
+     * @param fee1 Fee for token1
+     * @param data Encoded callback data
+     */
+    function pancakeV3FlashCallback(
+        uint256 fee0,
+        uint256 fee1,
+        bytes calldata data
+    ) external nonReentrant {
+        FlashCallbackData memory decoded = abi.decode(data, (FlashCallbackData));
+        
+        // Verify callback is from the correct pool
+        address poolAddress = pancakeV3Factory.getPool(
+            decoded.tokenBorrow,
+            decoded.tokenPay,
+            POOL_FEE_TIER_LOWEST // Use the fee tier specified during the flash loan
+        );
+        require(msg.sender == poolAddress, "Unauthorized callback");
+        
+        // Get the effective fee
+        uint256 fee = decoded.tokenBorrow < decoded.tokenPay ? fee0 : fee1;
+        uint256 amountToRepay = decoded.amountBorrow + fee;
+        
+        // Track balances to calculate profit
+        uint256 initialBalance = IERC20Upgradeable(decoded.tokenBorrow).balanceOf(address(this));
+        
+        // Execute the arbitrage
+        _executeSwaps(decoded);
+        
+        // Calculate profit
+        uint256 finalBalance = IERC20Upgradeable(decoded.tokenBorrow).balanceOf(address(this));
+        uint256 profit = finalBalance > amountToRepay ? finalBalance - amountToRepay : 0;
+        
+        // Repay the flash loan
+        IERC20Upgradeable(decoded.tokenBorrow).safeTransfer(msg.sender, amountToRepay);
+        
+        // Update trade statistics
+        totalTrades++;
+        
+        if (profit > 0) {
+            successfulTrades++;
+            totalProfit += profit;
+            
+            emit ArbitrageExecuted(
+                decoded.tokenBorrow,
+                decoded.amountBorrow,
+                profit,
+                decoded.buyDex,
+                decoded.sellDex
+            );
+        }
+    }
+    
+    /**
+     * @dev Internal function to execute the swaps for arbitrage
+     * @param data Flash callback data containing swap details
+     */
+    function _executeSwaps(FlashCallbackData memory data) internal {
+        // First approve the DEXes to spend the tokens
+        IERC20Upgradeable(data.tokenBorrow).safeApprove(data.buyDex, 0);
+        IERC20Upgradeable(data.tokenBorrow).safeApprove(data.buyDex, data.amountBorrow);
+        
+        // Get the middleware token (usually the second token in the path)
+        address middlewareToken = data.buyPath[data.buyPath.length - 1];
+        
+        // Execute the first swap (buy)
+        _executeBuySwap(data.buyDex, data.amountBorrow, data.buyPath);
+        
+        // Get the amount received from the first swap
+        uint256 middlewareAmount = IERC20Upgradeable(middlewareToken).balanceOf(address(this));
+        
+        // Approve the second DEX to spend the middleware token
+        IERC20Upgradeable(middlewareToken).safeApprove(data.sellDex, 0);
+        IERC20Upgradeable(middlewareToken).safeApprove(data.sellDex, middlewareAmount);
+        
+        // Execute the second swap (sell)
+        _executeSellSwap(data.sellDex, middlewareAmount, data.sellPath);
+    }
+    
+    /**
+     * @dev Execute a swap on the specified DEX with proper slippage control
+     * @param dexRouter Address of the DEX router
+     * @param amountIn Amount to swap
+     * @param path Trading path
+     */
+    function _executeBuySwap(
+        address dexRouter,
+        uint256 amountIn,
+        address[] memory path
+    ) internal {
+        // Calculate minimum output with appropriate slippage based on the DEX
+        uint256 slippageCap = _getSlippageCapForDex(dexRouter);
+        uint256 amountOutMin = _calculateMinimumOutput(dexRouter, amountIn, path, slippageCap);
+        
+        // Execute the appropriate swap based on the DEX
+        if (dexRouter == address(pancakeV2Router)) {
+            pancakeV2Router.swapExactTokensForTokens(
+                amountIn,
+                amountOutMin,
+                path,
+                address(this),
+                block.timestamp + 300 // 5 minute deadline
+            );
+        } else if (dexRouter == address(apeSwapRouter)) {
+            apeSwapRouter.swapExactTokensForTokens(
+                amountIn,
+                amountOutMin,
+                path,
+                address(this),
+                block.timestamp + 300
+            );
+        } else if (dexRouter == address(biSwapRouter)) {
+            biSwapRouter.swapExactTokensForTokens(
+                amountIn,
+                amountOutMin,
+                path,
+                address(this),
+                block.timestamp + 300
+            );
+        }
+    }
+    
+    /**
+     * @dev Execute a sell swap on the specified DEX with proper slippage control
+     * @param dexRouter Address of the DEX router
+     * @param amountIn Amount to swap
+     * @param path Trading path
+     */
+    function _executeSellSwap(
+        address dexRouter,
+        uint256 amountIn,
+        address[] memory path
+    ) internal {
+        // Calculate minimum output with appropriate slippage based on the DEX
+        uint256 slippageCap = _getSlippageCapForDex(dexRouter);
+        uint256 amountOutMin = _calculateMinimumOutput(dexRouter, amountIn, path, slippageCap);
+        
+        // Execute the appropriate swap based on the DEX
+        if (dexRouter == address(pancakeV2Router)) {
+            pancakeV2Router.swapExactTokensForTokens(
+                amountIn,
+                amountOutMin,
+                path,
+                address(this),
+                block.timestamp + 300 // 5 minute deadline
+            );
+        } else if (dexRouter == address(apeSwapRouter)) {
+            apeSwapRouter.swapExactTokensForTokens(
+                amountIn,
+                amountOutMin,
+                path,
+                address(this),
+                block.timestamp + 300
+            );
+        } else if (dexRouter == address(biSwapRouter)) {
+            biSwapRouter.swapExactTokensForTokens(
+                amountIn,
+                amountOutMin,
+                path,
+                address(this),
+                block.timestamp + 300
+            );
+        }
+    }
+    
+    /**
+     * @dev Get the slippage cap for a specific DEX
+     * @param dexRouter Address of the DEX router
+     * @return Slippage cap in basis points
+     */
+    function _getSlippageCapForDex(address dexRouter) internal view returns (uint256) {
+        if (dexRouter == address(pancakeV2Router)) {
+            return pancakeV2SlippageCap;
+        } else if (dexRouter == address(apeSwapRouter)) {
+            return apeSwapSlippageCap;
+        } else if (dexRouter == address(biSwapRouter)) {
+            return biSwapSlippageCap;
+        } else {
+            return pancakeV3SlippageCap; // Default to PancakeSwap V3 slippage cap
+        }
+    }
+    
+    /**
+     * @dev Calculate minimum output for a swap with slippage
+     * @param dexRouter Address of the DEX router
+     * @param amountIn Amount to swap
+     * @param path Trading path
+     * @param slippageBps Slippage in basis points (1 bp = 0.01%)
+     * @return Minimum amount out
+     */
+    function _calculateMinimumOutput(
+        address dexRouter,
+        uint256 amountIn,
+        address[] memory path,
+        uint256 slippageBps
+    ) internal view returns (uint256) {
+        uint256[] memory amountsOut;
+        
+        // Get expected amounts from the appropriate router
+        if (dexRouter == address(pancakeV2Router)) {
+            amountsOut = pancakeV2Router.getAmountsOut(amountIn, path);
+        } else if (dexRouter == address(apeSwapRouter)) {
+            amountsOut = apeSwapRouter.getAmountsOut(amountIn, path);
+        } else if (dexRouter == address(biSwapRouter)) {
+            amountsOut = biSwapRouter.getAmountsOut(amountIn, path);
+        } else {
+            // Default to PancakeSwap V2 if unsupported DEX
+            amountsOut = pancakeV2Router.getAmountsOut(amountIn, path);
+        }
+        
+        // Apply slippage
+        uint256 expectedOutput = amountsOut[amountsOut.length - 1];
+        uint256 slippageAmount = (expectedOutput * slippageBps) / 10000;
+        return expectedOutput - slippageAmount;
+    }
+    
+    /**
+     * @dev Withdraw tokens from the contract
+     * @param token Address of the token to withdraw
+     * @param amount Amount to withdraw
+     * @param recipient Address to receive the tokens
+     */
+    function withdrawToken(
+        address token,
+        uint256 amount,
+        address recipient
+    ) external onlyOwner {
+        require(recipient != address(0), "Cannot withdraw to zero address");
+        
+        uint256 balance = IERC20Upgradeable(token).balanceOf(address(this));
+        uint256 withdrawAmount = amount > 0 ? amount : balance;
+        
+        require(withdrawAmount <= balance, "Insufficient balance");
+        
+        IERC20Upgradeable(token).safeTransfer(recipient, withdrawAmount);
+        
+        emit Withdrawal(token, recipient, withdrawAmount);
+    }
+    
+    /**
+     * @dev Update slippage caps for DEXes
+     * @param _pancakeV3SlippageCap Slippage cap for PancakeSwap V3
+     * @param _biSwapSlippageCap Slippage cap for BiSwap
+     * @param _pancakeV2SlippageCap Slippage cap for PancakeSwap V2
+     * @param _apeSwapSlippageCap Slippage cap for ApeSwap
+     */
+    function updateSlippageCaps(
+        uint256 _pancakeV3SlippageCap,
+        uint256 _biSwapSlippageCap,
+        uint256 _pancakeV2SlippageCap,
+        uint256 _apeSwapSlippageCap
+    ) external onlyOwner {
+        // Validate slippage caps (allow a maximum of 5%)
+        require(_pancakeV3SlippageCap <= 500, "Slippage cap too high");
+        require(_biSwapSlippageCap <= 500, "Slippage cap too high");
+        require(_pancakeV2SlippageCap <= 500, "Slippage cap too high");
+        require(_apeSwapSlippageCap <= 500, "Slippage cap too high");
+        
+        pancakeV3SlippageCap = _pancakeV3SlippageCap;
+        biSwapSlippageCap = _biSwapSlippageCap;
+        pancakeV2SlippageCap = _pancakeV2SlippageCap;
+        apeSwapSlippageCap = _apeSwapSlippageCap;
+        
+        emit SlippageCapUpdated("PancakeSwap V3", _pancakeV3SlippageCap);
+        emit SlippageCapUpdated("BiSwap", _biSwapSlippageCap);
+        emit SlippageCapUpdated("PancakeSwap V2", _pancakeV2SlippageCap);
+        emit SlippageCapUpdated("ApeSwap", _apeSwapSlippageCap);
+    }
+    
+    /**
+     * @dev Configure MEV protection settings
+     * @param _enabled Whether MEV protection is enabled
+     * @param _backrunEnabled Whether backrun protection is enabled
+     * @param _frontrunEnabled Whether frontrun protection is enabled
+     * @param _priorityFeeMultiplier Multiplier for priority fees (in basis points)
+     */
+    function configureMevProtection(
+        bool _enabled,
+        bool _backrunEnabled,
+        bool _frontrunEnabled,
+        uint256 _priorityFeeMultiplier
+    ) external onlyOwner {
+        require(_priorityFeeMultiplier <= 500, "Fee multiplier too high"); // Max 5x
+        
+        mevProtectionEnabled = _enabled;
+        backrunEnabled = _backrunEnabled;
+        frontrunEnabled = _frontrunEnabled;
+        priorityFeeMultiplier = _priorityFeeMultiplier;
+        
+        emit MevProtectionUpdated(_enabled, _backrunEnabled, _frontrunEnabled);
+    }
+    
+    /**
+     * @dev Pause contract operations
+     */
+    function pause() external onlyOwner {
+        _pause();
+    }
+    
+    /**
+     * @dev Unpause contract operations
+     */
+    function unpause() external onlyOwner {
+        _unpause();
+    }
+    
+    /**
+     * @dev Get contract statistics
+     * @return _totalTrades Total number of trades
+     * @return _successfulTrades Number of successful trades
+     * @return _totalProfit Total profit accumulated
+     */
+    function getStats() external view returns (
+        uint256 _totalTrades,
+        uint256 _successfulTrades,
+        uint256 _totalProfit
+    ) {
+        return (totalTrades, successfulTrades, totalProfit);
+    }
+}

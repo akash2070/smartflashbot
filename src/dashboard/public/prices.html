@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Token Pair Prices - Flash Loan Arbitrage Bot</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.10.3/font/bootstrap-icons.css">
+  <link rel="stylesheet" href="css/prices.css">
+  <style>
+    body {
+      background-color: #f8f9fa;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    }
+    .dashboard-header {
+      background-color: #212529;
+      color: white;
+      padding: 1.5rem 0;
+      margin-bottom: 2rem;
+    }
+    .card {
+      border-radius: 10px;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      margin-bottom: 1.5rem;
+      border: none;
+    }
+    .card-header {
+      background-color: #f8f9fa;
+      border-bottom: 1px solid rgba(0, 0, 0, 0.125);
+      font-weight: 600;
+    }
+    .network-badge {
+      background-color: #f39c12;
+      color: white;
+    }
+    /* Loading overlay styles moved to external CSS */
+    .price-table th, .price-table td {
+      vertical-align: middle;
+    }
+    .price-positive {
+      color: #28a745;
+    }
+    .price-negative {
+      color: #dc3545;
+    }
+    .price-card {
+      transition: transform 0.2s;
+    }
+    .price-card:hover {
+      transform: translateY(-5px);
+      box-shadow: 0 10px 15px rgba(0, 0, 0, 0.1);
+    }
+    .token-icon {
+      width: 24px;
+      height: 24px;
+      margin-right: 5px;
+    }
+    .arbitrage-opportunity {
+      background-color: rgba(40, 167, 69, 0.1);
+    }
+    .refresh-button {
+      cursor: pointer;
+    }
+    .nav-link.active {
+      font-weight: bold;
+    }
+    .difference-badge {
+      font-size: 0.85rem;
+      padding: 0.25rem 0.5rem;
+    }
+    
+    /* Moved to external CSS */
+  </style>
+</head>
+<body>
+  <div class="loading-overlay" id="loadingOverlay">
+    <div class="spinner-border loading-spinner text-light" role="status">
+      <span class="visually-hidden">Loading...</span>
+    </div>
+  </div>
+
+  <header class="dashboard-header">
+    <div class="container">
+      <div class="row align-items-center">
+        <div class="col-md-6">
+          <h1>
+            <i class="bi bi-currency-exchange me-2"></i>
+            Flash Loan Arbitrage Bot
+          </h1>
+          <p class="mb-0">Token Pair Prices & Opportunities</p>
+        </div>
+        <div class="col-md-6 text-md-end">
+          <div class="h5">
+            <span id="networkBadge" class="badge network-badge">
+              <i class="bi bi-diagram-3"></i>
+              <span id="networkName">BNB Chain</span>
+            </span>
+            <span id="botStatusBadge" class="badge bg-success">
+              <i class="bi bi-robot"></i>
+              Bot Status: <span id="botStatus">Running</span>
+            </span>
+          </div>
+          <div class="small text-light">
+            <i class="bi bi-clock"></i> Last Updated: <span id="lastUpdated">-</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Navigation Tabs -->
+    <ul class="nav nav-tabs mb-4">
+      <li class="nav-item">
+        <a class="nav-link" href="index.html">
+          <i class="bi bi-speedometer2 me-1"></i> Dashboard
+        </a>
+      </li>
+      <li class="nav-item">
+        <a class="nav-link active" href="prices.html">
+          <i class="bi bi-graph-up-arrow me-1"></i> Price Comparison
+        </a>
+      </li>
+    </ul>
+
+    <!-- Summary Cards -->
+    <div class="row mb-4">
+      <div class="col-md-3">
+        <div class="card price-card bg-light">
+          <div class="card-body text-center">
+            <h5 class="card-title">Tracked Pairs</h5>
+            <h2 class="mb-0" id="trackedPairsCount">0</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card price-card bg-light">
+          <div class="card-body text-center">
+            <h5 class="card-title">Arbitrage Opportunities</h5>
+            <h2 class="mb-0" id="arbitrageOpportunitiesCount">0</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card price-card bg-light">
+          <div class="card-body text-center">
+            <h5 class="card-title">Max Profit Potential</h5>
+            <h2 class="mb-0" id="maxProfitPotential">0.00 BNB</h2>
+          </div>
+        </div>
+      </div>
+      <div class="col-md-3">
+        <div class="card price-card bg-light">
+          <div class="card-body text-center">
+            <h5 class="card-title">Last Price Update</h5>
+            <h2 class="mb-0" id="lastPriceUpdate">-</h2>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Token Pair Selection -->
+    <div class="card mb-4">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <i class="bi bi-filter-circle me-2"></i>
+          Select Token Pairs
+        </div>
+        <div>
+          <button id="refreshPrices" class="btn btn-sm btn-outline-primary">
+            <i class="bi bi-arrow-repeat me-1"></i> Refresh Prices
+          </button>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="row g-3" id="tokenPairSelectors">
+          <div class="col-md-3">
+            <div class="form-check">
+              <input class="form-check-input token-pair-checkbox" type="checkbox" value="WBNB/BUSD" id="pairWbnbBusd" checked>
+              <label class="form-check-label" for="pairWbnbBusd">
+                WBNB/BUSD
+              </label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="form-check">
+              <input class="form-check-input token-pair-checkbox" type="checkbox" value="WBNB/USDT" id="pairWbnbUsdt" checked>
+              <label class="form-check-label" for="pairWbnbUsdt">
+                WBNB/USDT
+              </label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="form-check">
+              <input class="form-check-input token-pair-checkbox" type="checkbox" value="CAKE/WBNB" id="pairCakeWbnb" checked>
+              <label class="form-check-label" for="pairCakeWbnb">
+                CAKE/WBNB
+              </label>
+            </div>
+          </div>
+          <div class="col-md-3">
+            <div class="form-check">
+              <input class="form-check-input token-pair-checkbox" type="checkbox" value="BUSD/USDT" id="pairBusdUsdt" checked>
+              <label class="form-check-label" for="pairBusdUsdt">
+                BUSD/USDT
+              </label>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Price Comparison Table -->
+    <div class="card">
+      <div class="card-header d-flex justify-content-between align-items-center">
+        <div>
+          <i class="bi bi-table me-2"></i>
+          Token Pair Prices Across DEXes
+        </div>
+        <div class="form-check form-switch">
+          <input class="form-check-input" type="checkbox" id="highlightArbitrageToggle" checked>
+          <label class="form-check-label" for="highlightArbitrageToggle">Highlight Opportunities</label>
+        </div>
+      </div>
+      <div class="card-body">
+        <div class="table-responsive">
+          <table class="table table-hover price-table" id="pricesTable">
+            <thead>
+              <tr>
+                <th>Token Pair</th>
+                <th>PancakeSwap V2 <small>(fee/slip)</small></th>
+                <th>PancakeSwap V3 <small>(fee/slip)</small></th>
+                <th>ApeSwap <small>(fee/slip)</small></th>
+                <th>BiSwap <small>(fee/slip)</small></th>
+                <th>Max Diff (%)</th>
+                <th>Gas Est.</th>
+                <th>Potential Profit</th>
+                <th>Updated</th>
+              </tr>
+            </thead>
+            <tbody id="pricesTableBody">
+              <tr>
+                <td colspan="9" class="text-center py-4 text-muted">Loading token pair prices...</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+
+    <!-- Arbitrage Path Visualization -->
+    <div class="card mt-4">
+      <div class="card-header">
+        <i class="bi bi-diagram-3 me-2"></i>
+        Optimal Arbitrage Paths
+      </div>
+      <div class="card-body">
+        <div id="arbitragePaths">
+          <div class="text-center py-4 text-muted">
+            Select token pairs and wait for price data to see optimal arbitrage paths
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <footer class="container mt-5 mb-3">
+    <div class="row">
+      <div class="col-12 text-center text-muted">
+        <small>Flash Loan Arbitrage Bot | &copy; 2025 | BNB Chain</small>
+      </div>
+    </div>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/moment@2.29.4/moment.min.js"></script>
+  <script src="/socket.io/socket.io.js"></script>
+  <script src="js/prices.js"></script>
+</body>
+</html>

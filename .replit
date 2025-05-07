@@ -1,0 +1,45 @@
+modules = ["nodejs-20"]
+
+[nix]
+channel = "stable-24_05"
+packages = ["solc", "jq"]
+
+[workflows]
+runButton = "Project"
+
+[[workflows.workflow]]
+name = "Project"
+mode = "parallel"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Flash Loan Arbitrage Bot"
+
+[[workflows.workflow.tasks]]
+task = "workflow.run"
+args = "Dashboard Server"
+
+[[workflows.workflow]]
+name = "Flash Loan Arbitrage Bot"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "npm install ethers@5.7.2 dotenv winston axios && node index.js"
+
+[[workflows.workflow]]
+name = "Dashboard Server"
+author = "agent"
+
+[[workflows.workflow.tasks]]
+task = "shell.exec"
+args = "node dashboard-server.js"
+waitForPort = 5000
+
+[deployment]
+run = ["sh", "-c", "npm install ethers@5.7.2 dotenv winston axios && node index.js"]
+
+[[ports]]
+localPort = 5000
+externalPort = 80

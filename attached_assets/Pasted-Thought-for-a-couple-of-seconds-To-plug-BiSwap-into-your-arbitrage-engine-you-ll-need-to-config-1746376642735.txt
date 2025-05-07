@@ -1,0 +1,99 @@
+Thought for a couple of seconds
+
+
+To plug BiSwap into your arbitrage engine you’ll need to configure a few key pieces of data so that your bot can discover pools, quote prices, build and send transactions. Here’s a checklist of the fields you’ll typically fill out in your `config.json` (or environment vars):
+
+---
+
+## 1. Chain & RPC settings
+
+```jsonc
+{
+  "chainId": 56,                      // BSC mainnet
+  "rpcUrl": "https://bsc-dataseed.binance.org/",
+  "privateKey": "0x…",                // your arbitrage wallet
+  "walletAddress": "0x…"              // derived from privateKey
+}
+```
+
+## 2. BiSwap Contracts
+
+```jsonc
+{
+  "factoryAddress": "0x858E3312ed3A876947EA49d572A7C42DE08af7EE",
+  "routerAddress":  "0x3a6d8cA21D1CF76F653A67577FA0D27453350dD8"
+}
+```
+
+## 3. Core Token Addresses
+
+You’ll need the common “base” tokens so you can route trades (e.g. WBNB, BUSD, USDT, CAKE, etc). For example:
+
+```jsonc
+{
+  "WBNB": "0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+  "BUSD": "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56",
+  "USDT": "0x55d398326f99059fF775485246999027B3197955"
+}
+```
+
+## 4. ABIs & Init Code Hash
+
+* **Factory ABI** & **Router ABI** (you can import these from `@uniswap/v2-core` / `@uniswap/v2-periphery`, they’re fully compatible)
+* **Pair init code hash** (used for address derivation):
+
+  ```
+  0x6d58d2e45ee7491a6d4412e8f45d04c9a8e50b363aec0b11c70e82ba8db60d17
+  ```
+
+## 5. Trade Parameters
+
+Tune these for slippage, gas, and timeouts:
+
+```jsonc
+{
+  "slippageTolerance": 0.005,        // 0.5%
+  "deadlineSeconds": 300,            // tx must confirm within 5 min
+  "gasPriceGwei": 5,                 
+  "gasLimit": 500000                 
+}
+```
+
+## 6. Token-Pair Scanning
+
+List the exact pairs or base tokens you want to arbitrage (e.g. `["WBNB/BUSD","BUSD/USDT"]`), or generate them on–the–fly from your core token set.
+
+---
+
+### Putting it all together
+
+```json
+{
+  "chainId": 56,
+  "rpcUrl": "https://bsc-dataseed.binance.org/",
+  "privateKey": "0x…",
+  "walletAddress": "0x…",
+  "factoryAddress": "0x858E3312ed3A876947EA49d572A7C42DE08af7EE",
+  "routerAddress":  "0x3a6d8cA21D1CF76F653A67577FA0D27453350dD8",
+  "tokens": {
+    "WBNB": "0xBB4CdB9CBd36B01bD1cBaEBF2De08d9173bc095c",
+    "BUSD": "0xe9e7CEA3DedcA5984780Bafc599bD69ADd087D56",
+    "USDT": "0x55d398326f99059fF775485246999027B3197955"
+  },
+  "initCodeHash": "0x6d58d2e45ee7491a6d4412e8f45d04c9a8e50b363aec0b11c70e82ba8db60d17",
+  "slippageTolerance": 0.005,
+  "deadlineSeconds": 300,
+  "gasPriceGwei": 5,
+  "gasLimit": 500000,
+  "targetPairs": ["WBNB/BUSD","BUSD/USDT"]
+}
+```
+
+With those in place your bot can:
+
+1. **Derive** pair addresses via `factory.getPair(tokenA, tokenB)` or by computing the CREATE2 address.
+2. **Quote** reserves from each pool, compute mid‐price.
+3. **Build** a multi‐hop or direct swap through the BiSwap router.
+4. **Sign & send** the TX using your private key, respecting your slippage and gas settings.
+
+Let me know if you need sample code for any of those steps!
