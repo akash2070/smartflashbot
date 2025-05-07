@@ -2,6 +2,7 @@
  * Configuration for the Flash Loan Arbitrage Bot
  */
 
+const crypto = require('crypto');
 const config = {
   // Network configuration
   network: {
@@ -53,36 +54,59 @@ const config = {
   // Add the BLOCKCHAIN structure for backward compatibility
   get BLOCKCHAIN() {
     return {
-      PRIMARY_RPC_URL: this.network.rpcUrl,
-      SECONDARY_RPC_URL: process.env.BNB_RPC_URL_BACKUP1 || 'https://bsc-dataseed2.binance.org/',
-      TERTIARY_RPC_URL: process.env.BNB_RPC_URL_BACKUP2 || 'https://bsc-dataseed3.binance.org/',
+      PRIMARY_RPC_URL: process.env.BNB_RPC_URL || 'https://bsc-mainnet.infura.io/v3/e61e6bfe6bbd410a842f58f7a98f5813',
+      SECONDARY_RPC_URL: process.env.BNB_RPC_URL_BACKUP1 || 'https://bsc-mainnet.core.chainstack.com/452214f8109f496cc2e3a7c61aeaf3af',
+      TERTIARY_RPC_URL: process.env.BNB_RPC_URL_BACKUP2 || 'https://bsc-mainnet.infura.io/v3/540be088222846879dde5408235eadbe',
+      
       RPC_URLS: [
+        'https://bsc-mainnet.infura.io/v3/e61e6bfe6bbd410a842f58f7a98f5813',
+        'https://bsc-mainnet.infura.io/v3/540be088222846879dde5408235eadbe',
+        'https://bsc-mainnet.infura.io/v3/d47931b894ba4a6d950a44bfc3fc0309',
+        'https://bsc-mainnet.infura.io/v3/9141934ea14f43b98d6025788a72d2b9',
+        
+        'https://bsc-mainnet.core.chainstack.com/452214f8109f496cc2e3a7c61aeaf3af',
+        'https://bsc-mainnet.core.chainstack.com/46b882aaad1fd65c0af996c58019d839',
+        'https://bsc-mainnet.core.chainstack.com/821e6d7b0229673dc844ffbb28c8f4ec',
+        
+        'https://black-damp-model.bsc.quiknode.pro/3050dcae7ae25db594ae3fa5b795ef24ced74c05/',
+        
         'https://bsc-dataseed1.binance.org/',
         'https://bsc-dataseed2.binance.org/',
         'https://bsc-dataseed3.binance.org/',
         'https://bsc-dataseed4.binance.org/',
         'https://rpc.ankr.com/bsc/',
       ],
+      
+      WSS_URLS: {
+        PRIMARY: process.env.WEBSOCKET_ENDPOINT_1 || 'wss://bsc-mainnet.infura.io/ws/v3/e61e6bfe6bbd410a842f58f7a98f5813',
+        INFURA1: 'wss://bsc-mainnet.infura.io/ws/v3/540be088222846879dde5408235eadbe',
+        CHAINSTACK: 'wss://bsc-mainnet.core.chainstack.com/452214f8109f496cc2e3a7c61aeaf3af',
+        INFURA2: 'wss://bsc-mainnet.infura.io/ws/v3/d47931b894ba4a6d950a44bfc3fc0309',
+        QUIKNODE: 'wss://black-damp-model.bsc.quiknode.pro/3050dcae7ae25db594ae3fa5b795ef24ced74c05/',
+        INFURA3: 'wss://bsc-mainnet.infura.io/ws/v3/9141934ea14f43b98d6025788a72d2b9',
+        CHAINSTACK2: 'wss://bsc-mainnet.core.chainstack.com/821e6d7b0229673dc844ffbb28c8f4ec'
+      },
+      
       // Pair-specific RPC configuration
       PAIR_SPECIFIC_RPC: {
         'WBNB_BUSD': {
-          rpcUrl: process.env.WBNB_BUSD_RPC_URL || 'https://bsc-dataseed1.binance.org/',
-          backupRpcUrl: process.env.WBNB_BUSD_BACKUP_RPC_URL || 'https://bsc-dataseed2.binance.org/',
+          rpcUrl: process.env.WBNB_BUSD_RPC_URL || 'https://bsc-mainnet.infura.io/v3/e61e6bfe6bbd410a842f58f7a98f5813',
+          backupRpcUrl: process.env.WBNB_BUSD_BACKUP_RPC_URL || 'https://bsc-mainnet.core.chainstack.com/452214f8109f496cc2e3a7c61aeaf3af',
           tokens: [this.tokens.WBNB, this.tokens.BUSD]
         },
         'WBNB_USDT': {
-          rpcUrl: process.env.WBNB_USDT_RPC_URL || 'https://bsc-dataseed1.binance.org/',
-          backupRpcUrl: process.env.WBNB_USDT_BACKUP_RPC_URL || 'https://bsc-dataseed3.binance.org/',
+          rpcUrl: process.env.WBNB_USDT_RPC_URL || 'https://bsc-mainnet.infura.io/v3/540be088222846879dde5408235eadbe',
+          backupRpcUrl: process.env.WBNB_USDT_BACKUP_RPC_URL || 'https://black-damp-model.bsc.quiknode.pro/3050dcae7ae25db594ae3fa5b795ef24ced74c05/',
           tokens: [this.tokens.WBNB, this.tokens.USDT]
         },
         'CAKE_WBNB': {
-          rpcUrl: process.env.CAKE_WBNB_RPC_URL || 'https://bsc-dataseed1.binance.org/',
-          backupRpcUrl: process.env.CAKE_WBNB_BACKUP_RPC_URL || 'https://bsc-dataseed4.binance.org/',
+          rpcUrl: process.env.CAKE_WBNB_RPC_URL || 'https://bsc-mainnet.infura.io/v3/d47931b894ba4a6d950a44bfc3fc0309',
+          backupRpcUrl: process.env.CAKE_WBNB_BACKUP_RPC_URL || 'https://bsc-mainnet.core.chainstack.com/46b882aaad1fd65c0af996c58019d839',
           tokens: [this.tokens.CAKE, this.tokens.WBNB]
         },
         'BUSD_USDT': {
-          rpcUrl: process.env.BUSD_USDT_RPC_URL || 'https://bsc-dataseed1.binance.org/',
-          backupRpcUrl: process.env.BUSD_USDT_BACKUP_RPC_URL || 'https://rpc.ankr.com/bsc/',
+          rpcUrl: process.env.BUSD_USDT_RPC_URL || 'https://bsc-mainnet.infura.io/v3/9141934ea14f43b98d6025788a72d2b9',
+          backupRpcUrl: process.env.BUSD_USDT_BACKUP_RPC_URL || 'https://bsc-mainnet.core.chainstack.com/821e6d7b0229673dc844ffbb28c8f4ec',
           tokens: [this.tokens.BUSD, this.tokens.USDT]
         }
       }
@@ -141,7 +165,8 @@ const config = {
   // Dashboard configuration
   dashboard: {
     port: process.env.PORT || 5000,
-    host: '0.0.0.0'
+    host: '0.0.0.0',
+    sessionSecret: process.env.SESSION_SECRET || crypto.randomBytes(32).toString('hex')
   },
   
   // Safety features
@@ -177,10 +202,10 @@ const config = {
   
   // RPC endpoints for different token pairs
   rpcEndpoints: {
-    'WBNB/BUSD': process.env.WBNB_BUSD_RPC_URL,
-    'WBNB/USDT': process.env.WBNB_USDT_RPC_URL,
-    'CAKE/WBNB': process.env.CAKE_WBNB_RPC_URL,
-    'BUSD/USDT': process.env.BUSD_USDT_RPC_URL
+    'WBNB/BUSD': process.env.WBNB_BUSD_RPC_URL || 'https://bsc-mainnet.infura.io/v3/e61e6bfe6bbd410a842f58f7a98f5813',
+    'WBNB/USDT': process.env.WBNB_USDT_RPC_URL || 'https://bsc-mainnet.infura.io/v3/540be088222846879dde5408235eadbe',
+    'CAKE/WBNB': process.env.CAKE_WBNB_RPC_URL || 'https://bsc-mainnet.infura.io/v3/d47931b894ba4a6d950a44bfc3fc0309',
+    'BUSD/USDT': process.env.BUSD_USDT_RPC_URL || 'https://bsc-mainnet.infura.io/v3/9141934ea14f43b98d6025788a72d2b9'
   },
   
   // MEV Protection configuration
