@@ -453,11 +453,25 @@ class PriceService {
     try {
       logger.info('Attempting to connect to blockchain with dedicated RPC endpoints for each pair');
       
-      // Set primary provider
-      const primaryRpcUrl = process.env.BNB_PREMIUM_RPC_1 || process.env.BNB_RPC_URL_KEY || 'https://bsc-dataseed1.binance.org';
-      logger.info(`Using ${primaryRpcUrl.substring(0, 25)}... as primary global endpoint`);
-      
-      this.provider = new ethers.providers.JsonRpcProvider(primaryRpcUrl);
+      try {
+        // Set primary provider with multiple fallbacks
+        const primaryRpcUrl = process.env.BNB_PREMIUM_RPC_1 || 
+                             process.env.BNB_RPC_URL_KEY || 
+                             'https://bsc-dataseed1.binance.org' || 
+                             'https://bsc-dataseed2.binance.org' || 
+                             'https://bsc-dataseed3.binance.org' || 
+                             'https://bsc-dataseed4.binance.org';
+        
+        logger.info(`Using ${primaryRpcUrl.substring(0, 25)}... as primary global endpoint`);
+        
+        this.provider = new ethers.providers.JsonRpcProvider(primaryRpcUrl, {
+          name: 'bnb',
+          chainId: 56
+        });
+      } catch (error) {
+        logger.error(`Error creating provider: ${error.message}`);
+        return false;
+      }
       
       try {
         await this.provider.getBlockNumber();
