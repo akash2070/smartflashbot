@@ -20,8 +20,7 @@ const DEPLOYED_CONTRACT = {
   // Set to true to enable contract integration
   IS_DEPLOYED: true,
   
-  // Our deployed FlashLoanArbitrage_Flattened contract address on BNB mainnet
-  ADDRESS: "0x43c006f6e8B7e81f64f2cba0f2a320875feF8c90",
+  ADDRESS: process.env.CONTRACT_ADDRESS || "0x43c006f6e8B7e81f64f2cba0f2a320875feF8c90",
   
   // The BNB Chain network (56 for mainnet, 97 for testnet)
   NETWORK_ID: 56, // BNB Chain Mainnet

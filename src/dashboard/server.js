@@ -118,7 +118,7 @@ class DashboardServer {
     // Set up session for security
     const config = require('../config');
     this.app.use(session({
-      secret: config.dashboard.sessionSecret,
+      secret: process.env.SESSION_SECRET || config.dashboard.sessionSecret || 'smartflashbot-session-secret',
       resave: false,
       saveUninitialized: true,
       cookie: { 
@@ -341,16 +341,19 @@ class DashboardServer {
   /**
    * Set all prices to N/A when real data can't be fetched
    */
-  setNAForAllPrices() {
+  setNAForAllPrices(errorMessage = null) {
     for (const pair in this.prices) {
       this.prices[pair] = {
         pancakeV2: 'N/A',
         pancakeV3: 'N/A',
         apeswap: 'N/A',
         biswap: 'N/A',
-        timestamp: new Date().toISOString()
+        timestamp: new Date().toISOString(),
+        errorMessage: errorMessage ? `Failed to fetch data: ${errorMessage}` : null
       };
     }
+    // Broadcast updated prices to all connected clients
+    this.io.emit('price-update', this.prices);
   }
 
   /**
@@ -360,6 +363,11 @@ class DashboardServer {
     try {
       logger.info('Fetching real price data from blockchain...');
       
+      if (!priceService.isInitialized) {
+        logger.info('Attempting to initialize price service...');
+        await priceService.initialize();
+      }
+      
       const pairs = ['WBNB/BUSD', 'WBNB/USDT', 'CAKE/WBNB', 'BUSD/USDT'];
       
       for (const pair of pairs) {
@@ -367,10 +375,18 @@ class DashboardServer {
           const prices = await priceService.getPricesForPair(pair);
           if (prices) {
             this.prices[pair] = prices;
-            logger.info(`[debug] ${pair} price data collected: ${JSON.stringify(prices)}`);
+            logger.info(`${pair} price data collected successfully`);
           }
         } catch (error) {
           logger.error(`Error fetching ${pair} prices: ${error.message}`);
+          this.prices[pair] = {
+            pancakeV2: 'N/A (Connection Error)',
+            pancakeV3: 'N/A (Connection Error)',
+            apeswap: 'N/A (Connection Error)',
+            biswap: 'N/A (Connection Error)',
+            timestamp: new Date().toISOString(),
+            errorMessage: error.message
+          };
         }
       }
       
@@ -379,8 +395,9 @@ class DashboardServer {
       
     } catch (error) {
       logger.error(`Error updating sample prices: ${error.message}`);
-      // Set all prices to N/A in case of complete failure
-      this.setNAForAllPrices();
+      // Set all prices to N/A in case of complete failure with error message
+      this.setNAForAllPrices(error.message);
+      this.io.emit('price-update', this.prices);
     }
   }
 

@@ -29,7 +29,11 @@ const missingEnvVars = requiredEnvVars.filter(varName => !process.env[varName]);
 if (missingEnvVars.length > 0) {
   logger.error(`Missing required environment variables: ${missingEnvVars.join(', ')}`);
   logger.warn('Using fallback values for missing environment variables');
-  
+}
+
+if (!process.env.SESSION_SECRET) {
+  logger.warn("SESSION_SECRET not found in environment variables. Using a random secret (will change on restart).");
+  process.env.SESSION_SECRET = require('crypto').randomBytes(32).toString('hex');
 }
 
 // Log that we're using real blockchain data
@@ -39,21 +43,21 @@ logger.info('Dashboard will use real blockchain data for price updates');
 // Start the dashboard server
 logger.info('Starting Flash Loan Arbitrage Bot Dashboard');
 
-// Initialize price service
-(async () => {
-  try {
-    logger.info('Initializing price service for real-time blockchain data...');
-    const initialized = await priceService.initialize();
+// Initialize price service for real-time data
+logger.info('Initializing price service...');
 
-    if (initialized) {
-      logger.info('Price service initialized successfully');
-    } else {
-      logger.error('Failed to initialize price service');
-    }
-  } catch (error) {
-    logger.error(`Error initializing price service: ${error.message}`);
+priceService.initialize().then(success => {
+  if (success) {
+    logger.info('✅ Price service initialized successfully');
+  } else {
+    logger.warn('⚠️ Price service initialization failed, dashboard will show limited data');
   }
-})();
+  
+  // Start the dashboard server regardless of price service initialization
+}).catch(error => {
+  logger.error('❌ Error initializing price service:', error.message);
+  logger.warn('⚠️ Dashboard will start with limited functionality');
+});
 
 // Start the dashboard server
 const port = process.env.PORT || 5000;

@@ -161,7 +161,19 @@ async function createProviderAndWallet() {
         const privateKey = process.env.PRIVATE_KEY;
         
         if (!privateKey) {
-          throw new Error('PRIVATE_KEY environment variable not set');
+          logger.warn('PRIVATE_KEY environment variable not set - running in monitoring-only mode');
+          
+          // Create a read-only wallet for monitoring without transactions
+          const readOnlyWallet = {
+            address: '0x0000000000000000000000000000000000000000',
+            provider: provider,
+            getAddress: () => '0x0000000000000000000000000000000000000000',
+            signMessage: () => { throw new Error('Read-only wallet cannot sign messages'); },
+            signTransaction: () => { throw new Error('Read-only wallet cannot sign transactions'); }
+          };
+          
+          logger.info(`Using read-only wallet mode`);
+          return { provider, wallet: readOnlyWallet };
         }
         
         // Create wallet
